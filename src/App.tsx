@@ -486,7 +486,14 @@ export default function App(){
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                     <div><LB t="Day Type"/>
-                      <select value={day.type} onChange={e=>u("type",e.target.value)} style={iS}>
+                      <select value={day.type} onChange={e=>{
+                        const newType=e.target.value;
+                        if(newType==="delivery"){
+                          upd(day.date,{type:"delivery",bf:false,bfG:"",dinId:"none",dinOv:true,dinG:"",eS:0,sDin:false,drkOn:false});
+                        } else {
+                          u("type",newType);
+                        }
+                      }} style={iS}>
                         <option value="full">Full Day (98,000 - min 120,000)</option>
                         <option value="partial">Partial Day (58,800 - min 72,000)</option>
                         <option value="delivery">Meal Delivery / Catering</option>
@@ -517,7 +524,7 @@ export default function App(){
 
                   <div style={{background:"#f9fafb",borderRadius:8,padding:10}}>
                     <div style={{fontWeight:600,fontSize:12,marginBottom:8}}>Meal Selection</div>
-                    {!day.type||day.type!=="delivery"?<>
+                    {day.type!=="delivery"?<>
                     <div style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #e5e7eb"}}>
                       <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,marginBottom:4}}><input type="checkbox" checked={day.bf} onChange={e=>u("bf",e.target.checked)}/><strong>Breakfast</strong><span style={{color:"#9ca3af",fontSize:10}}>est. {ISK(afull(mb["breakfast"]?.base||2000))}/pax</span></label>
                       {day.bf&&<div style={{paddingLeft:16,borderLeft:"2px solid #e5e7eb"}}><GIn label="Guests" value={day.bfG} onChange={(v:string)=>u("bfG",v)} inh={c.dG} sub/></div>}
@@ -534,7 +541,20 @@ export default function App(){
                       {c.frkOnly&&<div style={{marginTop:4,background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:5,padding:"6px 8px",fontSize:11,color:"#92400e"}}>Froken only - no chef service fee. Flat {ISK(FRKRATE)}/pax.</div>}
                       {c.effDin&&c.effDin!=="none"&&<div style={{paddingLeft:16,borderLeft:"2px solid #e5e7eb",marginTop:6}}><GIn label="Guests" value={day.dinG} onChange={(v:string)=>u("dinG",v)} inh={c.dG} sub/></div>}
                     </div>
-                    </>:<></>}
+                    </>:
+                    <div style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #e5e7eb"}}>
+                      <div style={{fontWeight:600,fontSize:12,marginBottom:4}}>Meal Items</div>
+                      <div style={{fontSize:11,color:"#6b7280",marginBottom:6}}>Select from your menu (fixed-price items recommended for delivery):</div>
+                      <div style={{display:"flex",gap:5,marginBottom:4}}>
+                        <select value={day.dinOv?(day.dinId||"none"):"none"} onChange={e=>upd(day.date,{dinId:e.target.value,dinOv:true})} style={{...iS,borderColor:day.dinOv&&day.dinId!=="none"?"#1e40af":"#e5e7eb"}}>
+                          <option value="none">No meal item</option>
+                          {menus.filter((m:any)=>m.cat!=="other").map((m:any)=><option key={m.id} value={m.id}>{m.label} - {mLabel(m)}</option>)}
+                        </select>
+                        {day.dinOv&&day.dinId!=="none"&&<button onClick={()=>upd(day.date,{dinOv:false,dinId:"none"})} style={{padding:"3px 7px",border:"1px solid #bfdbfe",borderRadius:5,background:"#fff",color:"#1e40af",cursor:"pointer",fontSize:11}}>x</button>}
+                      </div>
+                      {day.dinId&&day.dinId!=="none"&&<div style={{paddingLeft:16,borderLeft:"2px solid #bfdbfe",marginTop:6}}><GIn label="Guests" value={day.dinG} onChange={(v:string)=>u("dinG",v)} inh={c.dG} sub/></div>}
+                    </div>
+                    }
                     <div style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #e5e7eb"}}>
                       <div style={{fontWeight:600,fontSize:12,marginBottom:4}}>Lunch</div>
                       <select value={day.lType} onChange={e=>u("lType",e.target.value)} style={{...iS,marginBottom:4}}>
