@@ -6,11 +6,20 @@ const MAXG=20,MAXD=30,DEFG=8;
 const FRK="frokenselfoss",FRKRATE=Math.round(13990*0.85);
 const FLATIDS=[FRK,"staff_dinner","lunch_box"];
 const DELIVERY_RATES:any={
-  day:{label:"Dagur (07:00-17:00)",rate:165},
-  evening:{label:"Kvold (17:00-00:00)",rate:175},
-  weekend:{label:"Helgar",rate:190}
+  day:{label:"Day rate (07:00-17:00)",rate:165},
+  evening:{label:"Evening rate (17:00-00:00)",rate:175},
+  weekend:{label:"Weekend / Holiday rate",rate:190}
 };
 const DVAT=0.24;
+
+function getDeliveryTimeDefault(dateStr:string):string{
+  if(!dateStr)return"day";
+  const d=new Date(dateStr+"T12:00:00");
+  const dow=d.getDay();
+  if(dow===0||dow===6)return"weekend";
+  if(getHol(dateStr))return"weekend";
+  return"day";
+}
 const EJS_SVC="service_ayhh3cg";
 const EJS_TPL="im2dxg9";
 const EJS_KEY="5CfQAtA4uOD5I2SiW";
@@ -84,7 +93,8 @@ function mkDef(date:string,i:number,n:number){
     sDin:false,sCnt:1,lType:"none",lG:"",lBudg:"",
     drkOn:false,drkT:"welcome_cocktail",drkPpp:"",drkG:"",
     ovn:false,ovnN:"",cxN:"",cxS:"",notes:"",
-    deliveryKm:"",deliveryTime:"day"};
+    deliveryKm:"",deliveryTime:"day",
+    cateringName:"",cateringPricePph:"",cateringGuests:""};
 }
 function calcDay(day:any,GG:number,GD:string,menus:any[]){
   const h=getHol(day.date),hm=h?HM:1;
@@ -121,6 +131,15 @@ function calcDay(day:any,GG:number,GD:string,menus:any[]){
     lines.push({key:"drk_"+day.drkT,label:"Drinks - "+opt?.label,pax:drkG,base:db,vatC:avat(db),full:afull(db),isFixed:false});
   }
   const cx=parseFloat(day.cxS)||0;
+  // Catering fixed price line (delivery days only)
+  if(isDelivery){
+    const pph=parseFloat(day.cateringPricePph)||0;
+    const catG=rG(day.cateringGuests,dG);
+    if(pph>0&&catG>0){
+      const total=pph*catG;
+      lines.push({key:"catering_custom",label:day.cateringName||"Catering",pax:catG,base:total,full:total,isFixed:true});
+    }
+  }
   const foodT=lines.reduce((s:number,l:any)=>s+l.full,0);
   const dkm=parseFloat(day.deliveryKm)||0;
   const drate=DELIVERY_RATES[day.deliveryTime]?.rate||165;
@@ -489,7 +508,7 @@ export default function App(){
                       <select value={day.type} onChange={e=>{
                         const newType=e.target.value;
                         if(newType==="delivery"){
-                          upd(day.date,{type:"delivery",bf:false,bfG:"",dinId:"none",dinOv:true,dinG:"",eS:0,sDin:false,drkOn:false});
+                          upd(day.date,{type:"delivery",bf:false,bfG:"",dinId:"none",dinOv:true,dinG:"",eS:0,sDin:false,drkOn:false,deliveryTime:getDeliveryTimeDefault(day.date)});
                         } else {
                           u("type",newType);
                         }
@@ -503,13 +522,14 @@ export default function App(){
                   </div>
 
                   {day.type==="delivery"&&<div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,padding:12}}>
-                    <div style={{fontWeight:600,fontSize:12,marginBottom:8,color:"#1e40af"}}>Delivery Fee</div>
+                    <div style={{fontWeight:600,fontSize:12,marginBottom:8,color:"#1e40af"}}>Driving Fee (optional)</div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                       <div><LB t="Distance (km)"/><input type="number" min={0} value={day.deliveryKm} onChange={e=>u("deliveryKm",e.target.value)} placeholder="e.g. 45" style={iS}/></div>
-                      <div><LB t="Time of day"/>
+                      <div><LB t="Rate"/>
                         <select value={day.deliveryTime} onChange={e=>u("deliveryTime",e.target.value)} style={iS}>
                           {Object.entries(DELIVERY_RATES).map(([k,v]:any)=><option key={k} value={k}>{v.label} - {v.rate} ISK/km</option>)}
                         </select>
+                        {getDeliveryTimeDefault(day.date)==="weekend"&&<div style={{fontSize:10,color:"#1e40af",marginTop:2}}>Weekend / holiday rate auto-selected</div>}
                       </div>
                     </div>
                     {parseFloat(day.deliveryKm)>0&&<div style={{marginTop:8,fontSize:12,color:"#1e40af"}}>
@@ -543,16 +563,20 @@ export default function App(){
                     </div>
                     </>:
                     <div style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #e5e7eb"}}>
-                      <div style={{fontWeight:600,fontSize:12,marginBottom:4}}>Meal Items</div>
-                      <div style={{fontSize:11,color:"#6b7280",marginBottom:6}}>Select from your menu (fixed-price items recommended for delivery):</div>
-                      <div style={{display:"flex",gap:5,marginBottom:4}}>
-                        <select value={day.dinOv?(day.dinId||"none"):"none"} onChange={e=>upd(day.date,{dinId:e.target.value,dinOv:true})} style={{...iS,borderColor:day.dinOv&&day.dinId!=="none"?"#1e40af":"#e5e7eb"}}>
-                          <option value="none">No meal item</option>
-                          {menus.filter((m:any)=>m.cat!=="other").map((m:any)=><option key={m.id} value={m.id}>{m.label} - {mLabel(m)}</option>)}
-                        </select>
-                        {day.dinOv&&day.dinId!=="none"&&<button onClick={()=>upd(day.date,{dinOv:false,dinId:"none"})} style={{padding:"3px 7px",border:"1px solid #bfdbfe",borderRadius:5,background:"#fff",color:"#1e40af",cursor:"pointer",fontSize:11}}>x</button>}
+                      <div style={{fontWeight:600,fontSize:12,marginBottom:6,color:"#1e40af"}}>Catering / Delivery Item</div>
+                      <div style={{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:6,padding:"8px 10px",fontSize:11,color:"#991b1b",marginBottom:8}}>
+                        <strong>Admin use only.</strong> Custom catering quotes of this type must be arranged directly through Arni. Clients requiring catering services should contact us for a personalised quote.
                       </div>
-                      {day.dinId&&day.dinId!=="none"&&<div style={{paddingLeft:16,borderLeft:"2px solid #bfdbfe",marginTop:6}}><GIn label="Guests" value={day.dinG} onChange={(v:string)=>u("dinG",v)} inh={c.dG} sub/></div>}
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        <div><LB t="Description" s/><input value={day.cateringName||""} onChange={e=>u("cateringName",e.target.value)} placeholder="e.g. BBQ buffet, Pasta dinner delivery" style={iS}/></div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                          <div><LB t="Fixed price per head (ISK, incl. VAT)" s/><input type="number" min={0} value={day.cateringPricePph||""} onChange={e=>u("cateringPricePph",e.target.value)} placeholder="e.g. 3990" style={iS}/></div>
+                          <GIn label="Guests" value={day.cateringGuests||""} onChange={(v:string)=>u("cateringGuests",v)} inh={c.dG} sub/>
+                        </div>
+                        {parseFloat(day.cateringPricePph)>0&&rG(day.cateringGuests,c.dG)>0&&<div style={{fontSize:11,color:"#1e40af",background:"#eff6ff",padding:"6px 8px",borderRadius:5}}>
+                          {ISK(parseFloat(day.cateringPricePph)*rG(day.cateringGuests,c.dG))} total (flat rate, incl. VAT)
+                        </div>}
+                      </div>
                     </div>
                     }
                     <div style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid #e5e7eb"}}>
