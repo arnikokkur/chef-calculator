@@ -21,7 +21,7 @@ function getDeliveryTimeDefault(dateStr:string):string{
   return"day";
 }
 const EJS_SVC="service_ayhh3cg";
-const EJS_TPL="im2dxg9";
+const EJS_TPL="template_im2dxg9";
 const EJS_KEY="5CfQAtA4uOD5I2SiW";
 const CHEF_EMAIL="arni@abveitingar.is";
 
