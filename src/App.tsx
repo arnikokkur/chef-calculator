@@ -356,11 +356,63 @@ export default function App(){
     const blob=new Blob([html],{type:"text/html"}),url=URL.createObjectURL(blob),a=document.createElement("a");
     a.href=url;a.download="chef-quote-"+QR+".html";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
     if((window as any).emailjs){
+      const quoteState=JSON.stringify({
+        version:1,savedAt:new Date().toISOString(),
+        rangeStart,rangeEnd,excluded:Array.from(excluded),extraDates,
+        GG,GD,cfgs,cN,cE,cL,
+        menus:menus.filter((m:any)=>m.del),
+      });
+      // Build full quote HTML for email body
+      const emailHtml=
+        "<h2 style='font-family:Georgia,serif;margin:0 0 4px'>Private Chef Services</h2>"+
+        "<p style='font-family:sans-serif;font-size:12px;color:#666;margin:0 0 16px'>Quote: <b>"+QR+"</b> &middot; Generated: "+new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})+"</p>"+
+        "<table style='font-family:sans-serif;font-size:13px;border-collapse:collapse;margin-bottom:16px'>"+
+        "<tr><td style='padding:4px 16px 4px 0;color:#888'>Client</td><td><b>"+(cN||"--")+"</b></td></tr>"+
+        "<tr><td style='padding:4px 16px 4px 0;color:#888'>Email</td><td>"+(cE||"--")+"</td></tr>"+
+        "<tr><td style='padding:4px 16px 4px 0;color:#888'>Location</td><td>"+(cL||"--")+"</td></tr>"+
+        "<tr><td style='padding:4px 16px 4px 0;color:#888'>Dates</td><td>"+dates.map((d:string)=>fdS(d)).join(", ")+"</td></tr>"+
+        "<tr><td style='padding:4px 16px 4px 0;color:#888'>Estimated Total</td><td><b style='font-size:16px'>"+ISK(tots.grand)+"</b></td></tr>"+
+        "<tr><td style='padding:4px 16px 4px 0;color:#888'>Retainer (30%)</td><td>"+ISK(tots.ret)+"</td></tr>"+
+        "<tr><td style='padding:4px 16px 4px 0;color:#888'>Due 14 days prior (80%)</td><td>"+ISK(tots.pre)+"</td></tr>"+
+        "</table>"+
+        "<h3 style='font-family:sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin:0 0 8px;border-top:2px solid #111;padding-top:10px'>Day-by-Day Summary</h3>"+
+        "<table style='font-family:sans-serif;font-size:12px;border-collapse:collapse;width:100%;margin-bottom:16px'>"+
+        "<thead><tr style='background:#f5f5f5'>"+
+        "<th style='padding:6px 8px;text-align:left;border-bottom:2px solid #ccc'>Date</th>"+
+        "<th style='padding:6px 8px;text-align:left;border-bottom:2px solid #ccc'>Type</th>"+
+        "<th style='padding:6px 8px;text-align:right;border-bottom:2px solid #ccc'>Service Fee</th>"+
+        "<th style='padding:6px 8px;text-align:right;border-bottom:2px solid #ccc'>Food &amp; Bev</th>"+
+        "<th style='padding:6px 8px;text-align:right;border-bottom:2px solid #ccc'>Day Total</th>"+
+        "</tr></thead><tbody>"+
+        days.map((day:any,i:number)=>{
+          const c=calcs[i];
+          const typeLabel=day.type==="full"?"Full Day":day.type==="delivery"?"Delivery/Catering":"Partial Day";
+          return "<tr>"+
+            "<td style='padding:6px 8px;border-bottom:1px solid #eee'>"+fd(day.date)+(c.h?" ("+c.h+" x1.9)":"")+"</td>"+
+            "<td style='padding:6px 8px;border-bottom:1px solid #eee'>"+typeLabel+"</td>"+
+            "<td style='padding:6px 8px;border-bottom:1px solid #eee;text-align:right'>"+(c.svcA>0?ISK(c.svcA):"--")+(c.minApp?" *":"")+"</td>"+
+            "<td style='padding:6px 8px;border-bottom:1px solid #eee;text-align:right'>"+(c.foodT>0?ISK(c.foodT):"--")+"</td>"+
+            "<td style='padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold'>"+ISK(c.sub)+"</td>"+
+            "</tr>";
+        }).join("")+
+        "<tr style='background:#f5f5f5;font-weight:bold'>"+
+        "<td colspan='2' style='padding:6px 8px;border-top:2px solid #ccc'>TOTAL</td>"+
+        "<td style='padding:6px 8px;border-top:2px solid #ccc;text-align:right'>"+ISK(tots.svcT)+"</td>"+
+        "<td style='padding:6px 8px;border-top:2px solid #ccc;text-align:right'>"+ISK(tots.foodT)+"</td>"+
+        "<td style='padding:6px 8px;border-top:2px solid #ccc;text-align:right'>"+ISK(tots.grand)+"</td>"+
+        "</tr></tbody></table>"+
+        "<p style='font-family:sans-serif;font-size:11px;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:4px;padding:10px;margin-bottom:16px'>Food &amp; beverage costs are estimates. Final invoice based on actual cost of goods + 11% VAT + 30% markup.</p>"+
+        "<hr style='margin:16px 0;border:1px solid #eee'>"+
+        "<p style='font-family:sans-serif;font-size:11px;color:#888;margin-bottom:6px'>Quote data — save as .json to reload in calculator:</p>"+
+        "<pre style='font-size:10px;font-family:monospace;background:#f9f9f9;border:1px solid #ddd;padding:8px;border-radius:4px;white-space:pre-wrap;word-break:break-all'>"+quoteState+"</pre>";
+
       (window as any).emailjs.send(EJS_SVC,EJS_TPL,{
         quote_ref:QR,client_name:cN||"--",client_email:cE||"--",client_location:cL||"--",
         dates:dates.map((d:string)=>fdS(d)).join(", "),total:ISK(tots.grand),
         generated:new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}),
         to_email:CHEF_EMAIL,
+        quote_json:quoteState,
+        quote_html:emailHtml,
       }).catch((err:any)=>console.error("EmailJS:",err));
     }
   };
@@ -374,15 +426,26 @@ export default function App(){
       excluded:Array.from(excluded),
       extraDates,
       GG,GD,cfgs,cN,cE,cL,
-      menus:menus.filter((m:any)=>m.del), // only save custom menus
+      menus:menus.filter((m:any)=>m.del),
     };
-    const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+    const json=JSON.stringify(state,null,2);
+    const blob=new Blob([json],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
     a.href=url;
     a.download="chef-quote-"+(cN?cN.replace(/\s+/g,"-"):QR)+".json";
     document.body.appendChild(a);a.click();
     document.body.removeChild(a);URL.revokeObjectURL(url);
+    // Also email the saved quote
+    if((window as any).emailjs){
+      (window as any).emailjs.send(EJS_SVC,EJS_TPL,{
+        quote_ref:QR,client_name:cN||"--",client_email:cE||"--",client_location:cL||"--",
+        dates:dates.map((d:string)=>fdS(d)).join(", "),total:ISK(tots.grand),
+        generated:"Saved: "+new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}),
+        to_email:CHEF_EMAIL,
+        quote_json:json,
+      }).catch((err:any)=>console.error("EmailJS:",err));
+    }
   };
 
   const[loadWarning,setLoadWarning]=useState<string|null>(null);
