@@ -72,10 +72,19 @@ function getHol(s:string):string|null{
   if(m===5&&da===17)return"National Day";
   const a1=new Date(y,7,1),fm=new Date(y,7,a1.getDay()===1?1:1+(8-a1.getDay())%7);
   if(m===7&&da===fm.getDate())return"Commerce Day";
+  if(m===4&&da===1)return"Labour Day";
+  // First Day of Summer: first Thursday on or after April 19
+  const apr19=new Date(y,3,19);
+  const daysToThur=(4-apr19.getDay()+7)%7;
+  const firstSummer=new Date(y,3,19+daysToThur);
+  if(sameD(D,firstSummer))return"First Day of Summer";
   const E=easter(y);
+  if(sameD(D,addD(E,-3)))return"Maundy Thursday";
   if(sameD(D,addD(E,-2)))return"Good Friday";
   if(sameD(D,E))return"Easter Sunday";
+  if(sameD(D,addD(E,39)))return"Ascension Day";
   if(sameD(D,addD(E,49)))return"Pentecost";
+  if(sameD(D,addD(E,50)))return"Whit Monday";
   return null;
 }
 function genRange(s:string,e:string):string[]{
@@ -356,12 +365,121 @@ export default function App(){
     }
   };
 
+
+  const saveQuote=()=>{
+    const state={
+      version:1,
+      savedAt:new Date().toISOString(),
+      rangeStart,rangeEnd,
+      excluded:Array.from(excluded),
+      extraDates,
+      GG,GD,cfgs,cN,cE,cL,
+      menus:menus.filter((m:any)=>m.del), // only save custom menus
+    };
+    const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download="chef-quote-"+(cN?cN.replace(/\s+/g,"-"):QR)+".json";
+    document.body.appendChild(a);a.click();
+    document.body.removeChild(a);URL.revokeObjectURL(url);
+  };
+
+  const[loadWarning,setLoadWarning]=useState<string|null>(null);
+
+  const migrateDay=(d:any):any=>{
+    // All known day fields with defaults — add new fields here as the calculator evolves
+    const defaults:any={
+      type:"full",gO:"",eS:0,
+      bf:false,bfG:"",dinId:null,dinOv:false,dinG:"",
+      sDin:false,sCnt:1,lType:"none",lG:"",lBudg:"",
+      drkOn:false,drkT:"welcome_cocktail",drkPpp:"",drkG:"",
+      ovn:false,ovnN:"",cxN:"",cxS:"",notes:"",
+      deliveryKm:"",deliveryTime:"day",
+      cateringName:"",cateringPricePph:"",cateringGuests:"",
+    };
+    const migrated={...defaults,...d};
+    return migrated;
+  };
+
+  const loadQuote=(e:any)=>{
+    const file=e.target.files?.[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=(ev:any)=>{
+      try{
+        const s=JSON.parse(ev.target.result);
+        if(!s.version)throw new Error("Not a valid quote file");
+        const warnings:string[]=[];
+
+        // Migrate per-day configs
+        const migratedCfgs:any={};
+        let pricingFieldsAdded=false;
+        const pricingFields=["deliveryKm","deliveryTime","cateringPricePph","cateringGuests","cxS","eS"];
+        Object.entries(s.cfgs||{}).forEach(([date,day]:any)=>{
+          const migrated=migrateDay(day);
+          // Check if any pricing-relevant fields were missing
+          pricingFields.forEach(f=>{
+            if(day[f]===undefined&&migrated[f]!=="")pricingFieldsAdded=true;
+          });
+          migratedCfgs[date]=migrated;
+        });
+
+        if(pricingFieldsAdded){
+          warnings.push("Some pricing fields were not present in this saved quote and have been set to defaults. Please review each day before exporting.");
+        }
+
+        // Version upgrade notes
+        if(s.version<1){
+          warnings.push("This quote was saved with an older version of the calculator.");
+        }
+
+        setRangeStart(s.rangeStart||"");
+        setRangeEnd(s.rangeEnd||"");
+        setExcluded(new Set(s.excluded||[]));
+        setExtraDates(s.extraDates||[]);
+        setGG(s.GG||DEFG);
+        setGD(s.GD||"dinner_3course");
+        setCfgs(migratedCfgs);
+        setCN(s.cN||"");
+        setCE(s.cE||"");
+        setCL(s.cL||"");
+        if(s.menus?.length){
+          setMenus([...DMENUS,...s.menus]);
+        }
+        setTab("summary");
+        setSel(null);
+        setLoadWarning(warnings.length>0?warnings.join(" "):null);
+      }catch(err){
+        alert("Could not load quote file. Make sure it is a valid chef calculator quote.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value="";
+  };
+
   return(
     <div style={{fontFamily:"system-ui,sans-serif",maxWidth:980,margin:"0 auto",padding:"20px 16px",color:"#111827"}}>
-      <div style={{marginBottom:14}}>
-        <h1 style={{margin:0,fontSize:20,fontWeight:800}}>Private Chef Booking Calculator</h1>
-        <p style={{margin:"2px 0 0",color:"#6b7280",fontSize:13}}>Selfoss · All prices incl. 11% VAT · Quote <strong>{QR}</strong></p>
+      <div style={{marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}}>
+        <div>
+          <h1 style={{margin:0,fontSize:20,fontWeight:800}}>Private Chef Booking Calculator</h1>
+          <p style={{margin:"2px 0 0",color:"#6b7280",fontSize:13}}>Selfoss · All prices incl. 11% VAT · Quote <strong>{QR}</strong></p>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <label style={{padding:"7px 14px",background:"#f3f4f6",color:"#374151",border:"1px solid #d1d5db",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
+            <span>↑ Load Quote</span>
+            <input type="file" accept=".json" onChange={loadQuote} style={{display:"none"}}/>
+          </label>
+          {dates.length>0&&<button onClick={saveQuote} style={{padding:"7px 14px",background:"#f3f4f6",color:"#374151",border:"1px solid #d1d5db",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600}}>
+            ↓ Save Quote
+          </button>}
+        </div>
       </div>
+
+      {loadWarning&&<div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#92400e",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+        <div><strong>Quote loaded with changes:</strong> {loadWarning}</div>
+        <button onClick={()=>setLoadWarning(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#92400e",padding:0,lineHeight:1,flexShrink:0}}>✕</button>
+      </div>}
 
       <div style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"14px 16px",marginBottom:16}}>
         <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>Date Selection</div>
@@ -758,7 +876,7 @@ export default function App(){
 
         {tab==="policy"&&<div style={{maxWidth:680,fontSize:13,lineHeight:1.8,color:"#374151"}}>
           {[
-            {n:"1. Service Fee Structure",c:<><p><strong>Daily Service Fee:</strong> 98,000 ISK per day (incl. 11% VAT). Includes menu planning, sourcing, preparation, cooking, service, and travel within 30 min of Selfoss.</p><p><strong>Public Holidays:</strong> 1.9x the daily rate - Christmas (24-25 Dec), New Year (31 Dec - 1 Jan), National Day (17 Jun), Commerce Day, Good Friday, Easter Sunday, Pentecost.</p><p><strong>Additional Staff:</strong> 58,800 ISK per person per day (60% of full daily rate), regardless of day type. Holiday multiplier applies on public holidays.</p><p style={{fontSize:11,color:"#6b7280",borderLeft:"3px solid #e5e7eb",paddingLeft:10,marginTop:8}}><em>Staff/Host Dinner: Lodge management only - flat 2,900 ISK/pax (incl. VAT), no markup or holiday surcharge.</em></p></>},
+            {n:"1. Service Fee Structure",c:<><p><strong>Daily Service Fee:</strong> 98,000 ISK per day (incl. 11% VAT). Includes menu planning, sourcing, preparation, cooking, service, and travel within 30 min of Selfoss.</p><p><strong>Public Holidays:</strong> 1.9x the daily rate - New Year's Day (1 Jan), Maundy Thursday, Good Friday, Easter Sunday, Ascension Day, Pentecost, Whit Monday, First Day of Summer, Labour Day (1 May), National Day (17 Jun), Commerce Day (1st Mon in Aug), Christmas Eve (24 Dec), Christmas Day (25 Dec), New Year's Eve (31 Dec).</p><p><strong>Additional Staff:</strong> 58,800 ISK per person per day (60% of full daily rate), regardless of day type. Holiday multiplier applies on public holidays.</p><p style={{fontSize:11,color:"#6b7280",borderLeft:"3px solid #e5e7eb",paddingLeft:10,marginTop:8}}><em>Staff/Host Dinner: Lodge management only - flat 2,900 ISK/pax (incl. VAT), no markup or holiday surcharge.</em></p></>},
             {n:"2. Multi-Day & Non-Consecutive Bookings",c:<><p>Partial days billed at 60% of daily fee (58,800 ISK), minimum 72,000 ISK. Single-day bookings always at full rate, minimum 120,000 ISK.</p><p>For non-consecutive bookings, each booked day is priced independently. Days not booked incur no charge.</p></>},
             {n:"3. Meal Delivery / Catering",c:<><p>Meal Delivery and Catering days carry no chef service fee and no minimum spend. Food items are charged at fixed price (flat rate, incl. VAT - no additional markup).</p><p><strong>Delivery fee:</strong> Dagur (07:00-17:00): 165 ISK/km, Kvold (17:00-00:00): 175 ISK/km, Helgar: 190 ISK/km. All rates + 24% VAT.</p></>},
             {n:"4. Food & Beverage Pricing",c:<p>Ingredient cost (incl. VAT) + 30% service markup. Final costs calculated after the event based on actual purchases.</p>},
