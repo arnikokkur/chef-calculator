@@ -198,25 +198,109 @@ export default function App(){
 
   const expQ=()=>{
     if(!dates.length)return;
-    const rows=days.map((day:any,i:number)=>{
-      const c=calcs[i],meals:string[]=[];
-      if(day.bf)meals.push(`Breakfast ×${c.bfG}`);
-      if(c.effDin&&c.effDin!=="none")meals.push(`${mb[c.effDin]?.label||c.effDin} ×${c.dinG}${c.frkOnly?" (flat, no svc fee)":""}`);
-      if(day.lType==="onsite")meals.push(`On-Site Lunch ×${c.lG}`);
-      if(day.lType==="box")meals.push(`Takeaway Box ×${c.lG} (flat)`);
-      if(day.sDin)meals.push(`Staff Dinner ×${day.sCnt} (flat)`);
-      if(day.drkOn)meals.push(`Drinks – ${DRK[day.drkT]?.label} ×${c.drkG}`);
-      return`<tr><td>${fd(day.date)}${c.h?` <b>(${c.h} ×1.9)</b>`:""}</td><td>${day.type==="full"?"Full":"Partial"}</td><td>${meals.join("<br>")||"—"}</td><td align="right">${c.svcA>0?ISK(c.svcA):"—"}${c.minApp?"<br><small>min applied</small>":""}${c.frkOnly?"<br><small>no svc fee</small>":""}</td><td align="right">${c.foodT>0?ISK(c.foodT):"—"}</td><td align="right"><b>${ISK(c.sub)}</b></td></tr>`;
+
+    // Build detailed per-day sections
+    const daySections=days.map((day:any,i:number)=>{
+      const c=calcs[i];
+      const holNote=c.h?` <span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-size:10px;font-family:sans-serif">${c.h} ×1.9</span>`:"";
+      const dayType=day.type==="full"?"Full Day":"Partial Day";
+
+      // Service fee lines
+      let svcLines="";
+      if(c.frkOnly){
+        svcLines=`<tr><td style="padding:4px 8px;color:#555">No chef service fee</td><td></td><td style="padding:4px 8px;text-align:right;color:#7c3aed">Fröken Selfoss only</td></tr>`;
+      } else {
+        const chefLabel=c.frkBf?`Chef fee (breakfast, partial rate${c.h?" ×1.9":""})`:`Chef fee – ${dayType}${c.h?" (×1.9 holiday)":""}`;
+        svcLines+=`<tr><td style="padding:4px 8px;color:#555">${chefLabel}</td><td></td><td style="padding:4px 8px;text-align:right">${ISK(c.chef)}</td></tr>`;
+        if(c.staff>0){
+          svcLines+=`<tr><td style="padding:4px 8px;color:#555">Extra staff (${day.eS} × 58,800 ISK${c.h?" ×1.9":""})</td><td></td><td style="padding:4px 8px;text-align:right">${ISK(c.staff)}</td></tr>`;
+        }
+        if(c.minApp){
+          svcLines+=`<tr><td style="padding:4px 8px;color:#d97706">Minimum spend top-up</td><td style="padding:4px 8px;font-size:10px;color:#d97706">below min. ${ISK(c.min)}</td><td style="padding:4px 8px;text-align:right;color:#d97706">${ISK(c.ms)}</td></tr>`;
+        }
+      }
+
+      // Food lines
+      let foodLines="";
+      c.lines.forEach((l:any)=>{
+        const flatNote=l.isFixed?` <span style="font-size:10px;color:#888">(flat rate)</span>`:"";
+        foodLines+=`<tr><td style="padding:4px 8px;color:#555">${l.label} × ${l.pax} guests${flatNote}</td><td style="padding:4px 8px;text-align:right;color:#888">${l.isFixed?"—":ISK(l.base)}</td><td style="padding:4px 8px;text-align:right">${ISK(l.full)}</td></tr>`;
+      });
+      if(c.lSvc>0){
+        foodLines+=`<tr><td style="padding:4px 8px;color:#555">On-Site Lunch service fee</td><td></td><td style="padding:4px 8px;text-align:right">${ISK(c.lSvc)}</td></tr>`;
+      }
+      if(c.cx>0){
+        const cxNote=day.cxN?` – ${day.cxN}`:"";
+        foodLines+=`<tr><td style="padding:4px 8px;color:#d97706">Complexity surcharge${cxNote}</td><td></td><td style="padding:4px 8px;text-align:right;color:#d97706">${ISK(c.cx)}</td></tr>`;
+      }
+
+      return `
+<div style="margin-bottom:24px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;page-break-inside:avoid">
+  <div style="background:#f5f5f5;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ddd">
+    <div style="font-weight:bold;font-size:14px">${fd(day.date)}${holNote}</div>
+    <div style="font-size:12px;color:#555">${dayType} · ${c.dG} guests · <b>Day total: ${ISK(c.sub)}</b></div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#fafafa">
+      <th style="padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;color:#888;border-bottom:1px solid #eee;width:55%">Item</th>
+      <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;color:#888;border-bottom:1px solid #eee;width:20%">Base (excl. VAT+mkp)</th>
+      <th style="padding:6px 8px;text-align:right;font-size:10px;text-transform:uppercase;color:#888;border-bottom:1px solid #eee;width:25%">Amount</th>
+    </tr></thead>
+    <tbody>
+      <tr><td colspan="3" style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:#888;background:#f9fafb;letter-spacing:.5px">Service Fee</td></tr>
+      ${svcLines}
+      <tr style="background:#f9fafb"><td style="padding:6px 8px;font-weight:bold">Service Fee Total</td><td></td><td style="padding:6px 8px;text-align:right;font-weight:bold">${c.frkOnly?"—":ISK(c.svcA)}</td></tr>
+      ${foodLines.length?`<tr><td colspan="3" style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:#888;background:#f9fafb;letter-spacing:.5px">Food & Beverage <span style="text-transform:none;color:#d97706">(estimates)</span></td></tr>${foodLines}<tr style="background:#f9fafb"><td style="padding:6px 8px;font-weight:bold">Food & Bev Total (est.)</td><td></td><td style="padding:6px 8px;text-align:right;font-weight:bold">${ISK(c.foodT+c.lSvc)}</td></tr>`:""}
+    </tbody>
+    <tfoot>
+      <tr style="background:#111827;color:#fff">
+        <td colspan="2" style="padding:8px 14px;font-weight:bold;font-size:13px">Day Total (estimate)</td>
+        <td style="padding:8px 14px;text-align:right;font-weight:bold;font-size:14px">${ISK(c.sub)}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>`;
     }).join("");
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quote ${QR}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Georgia,serif;color:#111;padding:40px;font-size:13px;line-height:1.6}h1{font-size:22px;font-weight:bold}h2{font-size:14px;font-weight:bold;margin:24px 0 8px;padding-bottom:4px;border-bottom:2px solid #111}.hdr{display:flex;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #111}.tot{font-size:26px;font-weight:bold}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;padding:6px 8px;background:#f5f5f5;border-bottom:2px solid #ccc;font-size:11px;text-transform:uppercase}td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}small{color:#888;font-size:10px}.row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eee;font-size:12px}.disc{background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:12px;margin-top:20px;font-size:11px;color:#92400e}.foot{margin-top:28px;padding-top:14px;border-top:1px solid #ccc;font-size:11px;color:#888;text-align:center}tfoot td{font-weight:bold;background:#f5f5f5;border-top:2px solid #ccc}@media print{body{padding:20px}}</style></head><body>
-<div class="hdr"><div><h1>Private Chef Services</h1><p style="color:#666;font-size:12px">Quote · <b>${QR}</b></p><p style="font-size:12px;margin-top:4px"><b>Dates:</b> ${dates.map(d=>fdS(d)).join(", ")}</p><p style="font-size:11px;color:#888;margin-top:2px">Generated: ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}</p></div>
-<div style="text-align:right"><p style="font-size:11px;color:#666">Estimated Total</p><div class="tot">${ISK(tots.grand)}</div><p style="font-size:12px;margin-top:4px">Retainer (30%): <b>${ISK(tots.ret)}</b></p><p style="font-size:12px">Due 14 days prior (80%): <b>${ISK(tots.pre)}</b></p></div></div>
-${cN||cE||cL?`<div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:12px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;font-size:12px">${cN?`<div><b>Client</b><br>${cN}</div>`:""}${cE?`<div><b>Email</b><br>${cE}</div>`:""}${cL?`<div><b>Location</b><br>${cL}</div>`:""}</div>`:""}
-<h2>Day-by-Day Summary</h2><table><thead><tr><th>Date</th><th>Type</th><th>Meals</th><th align="right">Service Fee</th><th align="right">Food & Bev</th><th align="right">Day Total</th></tr></thead><tbody>${rows}</tbody>
-<tfoot><tr><td colspan="3">TOTAL</td><td align="right">${ISK(tots.svcT)}</td><td align="right">${ISK(tots.foodT)}</td><td align="right">${ISK(tots.grand)}</td></tr></tfoot></table>
-<h2>Payment Schedule</h2>${[["Estimated Total",tots.grand,true],["30% Retainer (due on booking)",tots.ret,false],["Total due 14 days before event (80%)",tots.pre,true],["Final balance (invoiced post-event)",tots.fin,false]].map(([l,v,b])=>`<div class="row${b?" bold":""}"><span>${l}</span><span>${ISK(v as number)}</span></div>`).join("")}
-<div class="disc"><b>⚠ Estimates Only:</b> Food & bev costs are estimates. Final invoice based on actual cost of goods + 11% VAT + 30% markup. Fröken Selfoss and Lunch Box are flat rates — no additional markup.</div>
-<div class="foot">Private Chef Services · Selfoss, Iceland · All prices include 11% VAT · Quote: ${QR}</div>
+
+    const css=`*{box-sizing:border-box;margin:0;padding:0}body{font-family:Georgia,serif;color:#111;padding:40px;font-size:13px;line-height:1.6;max-width:900px;margin:0 auto}h1{font-size:24px;font-weight:bold;margin-bottom:4px}h2{font-size:13px;font-weight:bold;margin:28px 0 10px;padding-bottom:5px;border-bottom:2px solid #111;text-transform:uppercase;letter-spacing:.5px}.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:18px;border-bottom:2px solid #111}.tot{font-size:28px;font-weight:bold;margin:4px 0}.summary-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}.summary-table th{padding:7px 10px;background:#f5f5f5;border-bottom:2px solid #ccc;font-size:11px;text-transform:uppercase;letter-spacing:.4px}.summary-table th.r{text-align:right}.summary-table td{padding:7px 10px;border-bottom:1px solid #eee;vertical-align:top}.summary-table td.r{text-align:right}.summary-table tfoot td{font-weight:bold;background:#f5f5f5;border-top:2px solid #ccc}.row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eee;font-size:12px}.row.bold{font-weight:bold;background:#f9fafb;padding:7px 4px}.disc{background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:14px;margin-top:24px;font-size:11px;color:#92400e;line-height:1.7}.foot{margin-top:32px;padding-top:14px;border-top:1px solid #ccc;font-size:11px;color:#888;text-align:center}@media print{body{padding:20px;max-width:100%}@page{margin:15mm}}`;
+
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quote ${QR}</title><style>${css}</style></head><body>
+<div class="hdr">
+  <div>
+    <h1>Private Chef Services</h1>
+    <p style="color:#666;font-size:12px;margin-top:2px">Booking Quote · <b>${QR}</b></p>
+    <p style="font-size:12px;margin-top:8px"><b>Dates:</b> ${dates.map(d=>fdS(d)).join(", ")} &nbsp;·&nbsp; ${dates.length} day${dates.length!==1?"s":""}</p>
+    <p style="font-size:11px;color:#888;margin-top:2px">Generated: ${new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}</p>
+  </div>
+  <div style="text-align:right">
+    <p style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px">Estimated Total</p>
+    <div class="tot">${ISK(tots.grand)}</div>
+    <p style="font-size:12px;margin-top:6px">Retainer (30%): &nbsp;<b>${ISK(tots.ret)}</b></p>
+    <p style="font-size:12px">Due 14 days prior (80%): &nbsp;<b>${ISK(tots.pre)}</b></p>
+  </div>
+</div>
+${cN||cE||cL?`<div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:14px;margin-bottom:20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;font-size:12px">${cN?`<div><p style="font-size:10px;text-transform:uppercase;color:#888;letter-spacing:.4px;margin-bottom:2px">Client</p><b>${cN}</b></div>`:""}${cE?`<div><p style="font-size:10px;text-transform:uppercase;color:#888;letter-spacing:.4px;margin-bottom:2px">Email</p><b>${cE}</b></div>`:""}${cL?`<div><p style="font-size:10px;text-transform:uppercase;color:#888;letter-spacing:.4px;margin-bottom:2px">Location</p><b>${cL}</b></div>`:""}</div>`:""}
+
+<h2>Summary</h2>
+<table class="summary-table">
+  <thead><tr><th>Date</th><th>Type</th><th class="r">Service Fee</th><th class="r">Food & Bev (est.)</th><th class="r">Day Total (est.)</th></tr></thead>
+  <tbody>
+    ${days.map((day:any,i:number)=>{
+      const c=calcs[i];
+      return`<tr><td>${fd(day.date)}${c.h?` <span style="background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:3px;font-size:10px;font-family:sans-serif">${c.h}</span>`:""}</td><td>${day.type==="full"?"Full Day":"Partial Day"}${c.frkOnly?` <span style="font-size:10px;color:#7c3aed">(no svc fee)</span>`:""}</td><td class="r">${c.svcA>0?ISK(c.svcA):"—"}${c.minApp?` <span style="font-size:10px;color:#d97706">min.</span>`:""}</td><td class="r">${c.foodT>0?ISK(c.foodT):"—"}</td><td class="r"><b>${ISK(c.sub)}</b></td></tr>`;
+    }).join("")}
+  </tbody>
+  <tfoot><tr><td colspan="2"><b>TOTAL</b></td><td class="r"><b>${ISK(tots.svcT)}</b></td><td class="r"><b>${ISK(tots.foodT)}</b></td><td class="r"><b>${ISK(tots.grand)}</b></td></tr></tfoot>
+</table>
+
+<h2>Detailed Breakdown</h2>
+${daySections}
+
+<h2>Payment Schedule</h2>
+${[["Estimated Total",tots.grand,true],["30% Retainer (non-refundable, due on booking)",tots.ret,false],["Additional pre-payment due 14 days before event",tots.pre-tots.ret,false],["Total due 14 days before event (80%)",tots.pre,true],["Final balance – invoiced within 7 days post-event",tots.fin,false]].map(([l,v,b])=>`<div class="row${b?" bold":""}"><span>${l}</span><span>${ISK(v as number)}</span></div>`).join("")}
+
+<div class="disc"><b>⚠ Important — Estimates Only:</b> All food and beverage costs shown are estimates based on standard ingredient pricing. The <b>final invoice is always based on actual cost of goods purchased</b> + 11% VAT + 30% service markup. Fröken Selfoss and Takeaway Lunch Box charges are flat pass-through rates with no additional markup.</div>
+<div class="foot">Private Chef Services · Selfoss, Iceland · All prices include 11% VAT · Quote reference: ${QR}</div>
 <script>window.onload=()=>window.print()<\/script></body></html>`;
     const blob=new Blob([html],{type:"text/html"}),url=URL.createObjectURL(blob),a=document.createElement("a");
     a.href=url;a.download=`chef-quote-${QR}.html`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
