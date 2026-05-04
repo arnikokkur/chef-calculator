@@ -4,7 +4,7 @@ const DAILY=98000,PR=0.6,HM=1.9,VAT=0.11,MKP=0.30;
 const MINF=120000,MINP=72000,LSVC=60000,BOX=3800;
 const MAXG=20,MAXD=30,DEFG=8;
 const FRK="frokenselfoss",FRKRATE=Math.round(13990*0.85);
-const DELIVERY_RATES:any={day:{label:"Dagur (07:00–17:00)",rate:165},evening:{label:"Kvöld (17:00–00:00)",rate:175},weekend:{label:"Helgar",rate:190}};
+const DELIVERY_RATES:any={day:{label:"Dagur (07:00-17:00)",rate:165},evening:{label:"Kvöld (17:00-00:00)",rate:175},weekend:{label:"Helgar",rate:190}};
 const DELIVERY_VAT=0.24;
 
 const EMAILJS_SERVICE_ID="service_ayhh3cg";
@@ -428,7 +428,7 @@ ${[["Estimated Total",tots.grand,true],["30% Retainer (non-refundable, due on bo
               if(day.drkOn)p.push(`Drinks ×${c.drkG}`);
               return <tr key={day.date} style={{cursor:"pointer"}} onClick={()=>{setTab("days");setSel(day.date);}} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background="#f9fafb"} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=""}>
                 <td style={tdS(false)}><span style={{fontWeight:600}}>{fd(day.date)}</span>{c.h&&<HolB n={c.h}/>}{extraDates.includes(day.date)&&<span style={{marginLeft:5,fontSize:10,background:"#eff6ff",color:"#1e40af",padding:"1px 5px",borderRadius:3}}>added</span>}</td>
-                <td style={tdS(false)}><span style={{padding:"2px 6px",borderRadius:4,fontSize:11,background:day.type==="full"?"#dbeafe":day.type==="delivery"?"#eff6ff":"#fef3c7",color:day.type==="full"?"#1e40af":day.type==="delivery"?"#1e40af":"#92400e"}}>{day.type==="full"?"Full":day.type==="delivery"?"Del/Cat":"Partial"}</span>{c.frkOnly&&<div style={{fontSize:10,color:"#7c3aed",marginTop:2}}>No svc fee</div>}{c.isDelivery&&<div style={{fontSize:10,color:"#1e40af",marginTop:2}}>No svc fee</div>}</td>
+                <td style={tdS(false)}><span style={{padding:"2px 6px",borderRadius:4,fontSize:11,background:day.type==="full"?"#dbeafe":day.type==="delivery"?"#eff6ff":"#fef3c7",color:day.type==="full"?"#1e40af":day.type==="delivery"?"#1e40af":"#92400e"}}>{day.type==="full"?"Full":day.type==="delivery"?"Catering":"Partial"}</span>{c.frkOnly&&<div style={{fontSize:10,color:"#7c3aed",marginTop:2}}>No svc fee</div>}{c.isDelivery&&<div style={{fontSize:10,color:"#1e40af",marginTop:2}}>No svc fee</div>}</td>
                 <td style={{...tdS(false),fontSize:12,color:"#6b7280"}}>{p.join(" · ")||"—"}</td>
                 <td style={tdS(true)}>{c.svcA>0?ISK(c.svcA):"—"}{c.minApp&&<div style={{fontSize:10,color:"#f59e0b"}}>min. applied</div>}{c.h&&!c.frkOnly&&<div style={{fontSize:10,color:"#d97706"}}>×1.9</div>}</td>
                 <td style={tdS(true)}>{c.foodT>0?ISK(c.foodT):"—"}</td>
@@ -470,7 +470,7 @@ ${[["Estimated Total",tots.grand,true],["30% Retainer (non-refundable, due on bo
                     <div><LB t="Day Type"/><select value={day.type} onChange={e=>u("type",e.target.value)} style={iS}>
                       <option value="full">Full Day (98,000 · min 120,000)</option>
                       <option value="partial">Partial – multi-day (58,800 · min 72,000)</option>
-                      <option value="delivery">Meal Delivery / Catering – no service fee</option>
+                      <option value="delivery">Meal Delivery / Catering - no service fee</option>
                     </select></div>
                     <GIn label={`Guests (def: ${GG})`} value={day.gO} onChange={v=>u("gO",v)} inh={GG}/>
                   </div>
