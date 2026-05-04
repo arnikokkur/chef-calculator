@@ -21,7 +21,7 @@ function getDeliveryTimeDefault(dateStr:string):string{
   return"day";
 }
 const EJS_SVC="service_ayhh3cg";
-const EJS_TPL="template_im2dxg9";
+const EJS_TPL="template_fj7cfgm";
 const EJS_KEY="5CfQAtA4uOD5I2SiW";
 const CHEF_EMAIL="arni@abveitingar.is";
 
@@ -142,7 +142,9 @@ function calcDay(day:any,GG:number,GD:string,menus:any[]){
   }
   const foodT=lines.reduce((s:number,l:any)=>s+l.full,0);
   const dkm=parseFloat(day.deliveryKm)||0;
-  const drate=DELIVERY_RATES[day.deliveryTime]?.rate||165;
+  const autoTime=getDeliveryTimeDefault(day.date);
+  const effectiveTime=autoTime==="weekend"?"weekend":day.deliveryTime;
+  const drate=DELIVERY_RATES[effectiveTime]?.rate||165;
   const deliveryFee=isDelivery&&dkm>0?Math.round(dkm*drate*(1+DVAT)):0;
   const raw=svcRaw+lSvc+foodT+cx+deliveryFee;
   const ms=Math.max(0,min-raw);
@@ -526,10 +528,16 @@ export default function App(){
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                       <div><LB t="Distance (km)"/><input type="number" min={0} value={day.deliveryKm} onChange={e=>u("deliveryKm",e.target.value)} placeholder="e.g. 45" style={iS}/></div>
                       <div><LB t="Rate"/>
-                        <select value={day.deliveryTime} onChange={e=>u("deliveryTime",e.target.value)} style={iS}>
-                          {Object.entries(DELIVERY_RATES).map(([k,v]:any)=><option key={k} value={k}>{v.label} - {v.rate} ISK/km</option>)}
-                        </select>
-                        {getDeliveryTimeDefault(day.date)==="weekend"&&<div style={{fontSize:10,color:"#1e40af",marginTop:2}}>Weekend / holiday rate auto-selected</div>}
+                        {getDeliveryTimeDefault(day.date)==="weekend"
+                          ?<div style={{padding:"6px 8px",background:"#dbeafe",borderRadius:5,fontSize:12,color:"#1e40af",fontWeight:600}}>
+                            Weekend / Holiday rate — {DELIVERY_RATES.weekend.rate} ISK/km + 24% VAT
+                            <div style={{fontSize:10,fontWeight:400,marginTop:2}}>Auto-applied — weekends and public holidays always use this rate</div>
+                          </div>
+                          :<select value={day.deliveryTime} onChange={e=>u("deliveryTime",e.target.value)} style={iS}>
+                            <option value="day">{DELIVERY_RATES.day.label} - {DELIVERY_RATES.day.rate} ISK/km</option>
+                            <option value="evening">{DELIVERY_RATES.evening.label} - {DELIVERY_RATES.evening.rate} ISK/km</option>
+                          </select>
+                        }
                       </div>
                     </div>
                     {parseFloat(day.deliveryKm)>0&&<div style={{marginTop:8,fontSize:12,color:"#1e40af"}}>
