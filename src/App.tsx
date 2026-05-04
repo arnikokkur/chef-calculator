@@ -361,7 +361,7 @@ export default function App(){
         rangeStart,rangeEnd,excluded:Array.from(excluded),extraDates,
         GG,GD,cfgs,cN,cE,cL,
         menus:menus.filter((m:any)=>m.del),
-      });
+      }).replace(/@/g,"[at]");  // prevent email auto-linking in EmailJS
       const dayLines=days.map((day:any,i:number)=>{
         const c=calcs[i];
         const typeLabel=day.type==="full"?"Full":day.type==="delivery"?"Delivery":"Partial";
@@ -397,7 +397,7 @@ export default function App(){
       GG,GD,cfgs,cN,cE,cL,
       menus:menus.filter((m:any)=>m.del),
     };
-    const json=JSON.stringify(state,null,2);
+    const json=JSON.stringify(state).replace(/@/g,"[at]");  // prevent email auto-linking
     const blob=new Blob([json],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
@@ -453,7 +453,7 @@ export default function App(){
     const reader=new FileReader();
     reader.onload=(ev:any)=>{
       try{
-        const s=JSON.parse(ev.target.result);
+        const s=JSON.parse(ev.target.result.replace(/\[at\]/g,"@"));
         if(!s.version)throw new Error("Not a valid quote file");
         const warnings:string[]=[];
 
