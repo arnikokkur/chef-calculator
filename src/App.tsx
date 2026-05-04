@@ -529,11 +529,11 @@ export default function App(){
           <p style={{margin:"2px 0 0",color:"#6b7280",fontSize:13}}>Selfoss · All prices incl. 11% VAT · Quote <strong>{QR}</strong></p>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <label style={{padding:"7px 14px",background:"#f3f4f6",color:"#374151",border:"1px solid #d1d5db",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
+          <label title="Load a previously saved quote to make adjustments without re-entering all the information." style={{padding:"7px 14px",background:"#f3f4f6",color:"#374151",border:"1px solid #d1d5db",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
             <span>↑ Load Quote</span>
             <input type="file" accept=".json" onChange={loadQuote} style={{display:"none"}}/>
           </label>
-          {dates.length>0&&<button onClick={saveQuote} style={{padding:"7px 14px",background:"#f3f4f6",color:"#374151",border:"1px solid #d1d5db",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600}}>
+          {dates.length>0&&<button onClick={saveQuote} title="Save this quote as a file so you can reload it later and make adjustments without re-entering all the information." style={{padding:"7px 14px",background:"#f3f4f6",color:"#374151",border:"1px solid #d1d5db",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600}}>
             ↓ Save Quote
           </button>}
         </div>
@@ -620,7 +620,7 @@ export default function App(){
             </div>
           ))}
           {calcs.some((c:any)=>c.h)&&<div style={{fontSize:11,color:"#fcd34d"}}>! Holiday rate(s) applied</div>}
-          <button onClick={expQ} style={{marginLeft:"auto",padding:"7px 16px",background:"#fff",color:"#111827",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700}}>Export Quote</button>
+          <button onClick={expQ} title="Export a printable PDF quote to share with the client. Also sends a notification email to Arni with the full quote details." style={{marginLeft:"auto",padding:"7px 16px",background:"#fff",color:"#111827",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:700}}>Export Quote</button>
         </div>
 
         <div style={{borderBottom:"1px solid #e5e7eb",marginBottom:16,display:"flex",overflowX:"auto"}}>
