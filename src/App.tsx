@@ -4,7 +4,8 @@ const DAILY=98000,PR=0.6,HM=1.9,VAT=0.11,MKP=0.30;
 const MINF=120000,MINP=72000,LSVC=60000,BOX=3800;
 const MAXG=20,MAXD=30,DEFG=8;
 const FRK="frokenselfoss",FRKRATE=Math.round(13990*0.85);
-const FLATIDS=[FRK,"staff_dinner","lunch_box"];
+const DELIVERY_RATES:any={day:{label:"Dagur (07:00–17:00)",rate:165},evening:{label:"Kvöld (17:00–00:00)",rate:175},weekend:{label:"Helgar",rate:190}};
+const DELIVERY_VAT=0.24;
 
 const EMAILJS_SERVICE_ID="service_ayhh3cg";
 const EMAILJS_TEMPLATE_ID="im2dxg9";
@@ -77,7 +78,8 @@ function mkDef(date:string,i:number,n:number){
     bf:!first,bfG:"",dinId:last?"none":null as string|null,dinOv:last,dinG:"",
     sDin:false,sCnt:1,lType:"none",lG:"",lBudg:"",
     drkOn:false,drkT:"welcome_cocktail",drkPpp:"",drkG:"",
-    ovn:false,ovnN:"",cxN:"",cxS:"",notes:""};
+    ovn:false,ovnN:"",cxN:"",cxS:"",notes:"",
+    deliveryKm:"",deliveryTime:"day"};
 }
 function calcDay(day:any,GG:number,GD:string,menus:any[]){
   const h=getHol(day.date),hm=h?HM:1;
@@ -88,16 +90,18 @@ function calcDay(day:any,GG:number,GD:string,menus:any[]){
   const effDin=day.dinOv?day.dinId:GD;
   const isFrk=effDin===FRK,frkBf=isFrk&&day.bf;
   const frkOnly=isFrk&&!day.bf&&day.lType==="none";
-  const svcR=frkOnly?0:frkBf?PR*hm:tr*hm;
+  const isDelivery=day.type==="delivery";
+  const svcR=frkOnly?0:isDelivery?0:frkBf?PR*hm:tr*hm;
   const chef=DAILY*svcR;
-  const staff=es*DAILY*0.6*(frkOnly?0:hm);
-  const svcRaw=chef+staff,min=frkOnly?0:(part?MINP:MINF);
+  const staff=isDelivery?0:es*DAILY*0.6*(frkOnly?0:hm);
+  const svcRaw=chef+staff,min=frkOnly||isDelivery?0:(part?MINP:MINF);
   const lines:any[]=[];
   const push=(id:string,pax:number,flat=false)=>{
     const m=mb[id];if(!m||pax<=0)return;
     const base=m.base*pax;
-    flat?lines.push({key:id,label:m.label,pax,base,full:base,isFixed:true})
-        :lines.push({key:id,label:m.label,pax,base,vatC:avat(base),full:afull(base),isFixed:false});
+    const isFlat=flat||m.fixed===true;
+    isFlat?lines.push({key:id,label:m.label,pax,base,full:base,isFixed:true})
+          :lines.push({key:id,label:m.label,pax,base,vatC:avat(base),full:afull(base),isFixed:false});
   };
   if(day.bf&&bfG>0)push("breakfast",bfG);
   if(effDin&&effDin!=="none"&&dinG>0)push(effDin,dinG,isFrk);
@@ -110,10 +114,14 @@ function calcDay(day:any,GG:number,GD:string,menus:any[]){
     const opt=DRK[day.drkT],dppp=parseFloat(day.drkPpp)||opt?.def||0,db=dppp*drkG;
     lines.push({key:"drk_"+day.drkT,label:`Drinks – ${opt?.label||""}`,pax:drkG,base:db,vatC:avat(db),full:afull(db),isFixed:false});
   }
+  const deliveryKm=parseFloat(day.deliveryKm)||0;
+  const deliveryRate=(DELIVERY_RATES[day.deliveryTime]?.rate||165);
+  const deliveryFee=isDelivery&&deliveryKm>0?Math.round(deliveryKm*deliveryRate*(1+DELIVERY_VAT)):0;
+
   const cx=parseFloat(day.cxS)||0,foodT=lines.reduce((s:number,l:any)=>s+l.full,0);
-  const raw=svcRaw+lSvc+foodT+cx,ms=Math.max(0,min-raw);
-  const svcA=svcRaw+ms,sub=svcA+lSvc+foodT+cx;
-  return{chef,staff,svcRaw,svcA,minApp:ms>0,ms,min,h,hm,lines,lSvc,foodT,sub,cx,dG,bfG,dinG,lG,drkG,effDin,isFrk,frkOnly,frkBf};
+  const raw=svcRaw+lSvc+foodT+cx+deliveryFee,ms=Math.max(0,min-raw);
+  const svcA=svcRaw+ms,sub=svcA+lSvc+foodT+cx+deliveryFee;
+  return{chef,staff,svcRaw,svcA,minApp:ms>0,ms,min,h,hm,lines,lSvc,foodT,sub,cx,dG,bfG,dinG,lG,drkG,effDin,isFrk,frkOnly,frkBf,isDelivery,deliveryFee,deliveryKm,deliveryRate};
 }
 
 const iS:any={border:"1px solid #e5e7eb",borderRadius:5,padding:"5px 8px",fontSize:13,width:"100%",boxSizing:"border-box",outline:"none",background:"#fff"};
@@ -143,7 +151,7 @@ export default function App(){
   const[newExtra,setNewExtra]=useState("");
   const[GG,setGG]=useState(DEFG),[GD,setGD]=useState("dinner_3course");
   const[cfgs,setCfgs]=useState<any>({}),[tab,setTab]=useState("summary"),[sel,setSel]=useState<string|null>(null);
-  const[menus,setMenus]=useState(DMENUS),[nm,setNm]=useState({label:"",base:"",cat:"dinner",note:""});
+  const[menus,setMenus]=useState(DMENUS),[nm,setNm]=useState({label:"",base:"",cat:"dinner",note:"",fixed:false});
   const[cN,setCN]=useState(""),[cE,setCE]=useState(""),[cL,setCL]=useState("");
 
   useEffect(()=>{
@@ -167,7 +175,7 @@ export default function App(){
   const removeExtra=(d:string)=>setExtraDates(p=>p.filter((x:string)=>x!==d));
   const upd=(date:string,p:any)=>setCfgs((prev:any)=>{const idx=dates.indexOf(date);const base=prev[date]||(idx>=0?mkDef(date,idx,dates.length):{});return{...prev,[date]:{...base,...p}};});
   const updM=(id:string,f:string,v:any)=>setMenus((ms:any[])=>ms.map((m:any)=>m.id===id?{...m,[f]:v}:m));
-  const addM=()=>{if(!nm.label.trim()||!nm.base)return;setMenus((ms:any[])=>[...ms,{id:uid(),label:nm.label.trim(),base:parseFloat(nm.base),cat:nm.cat,note:nm.note||null,del:true}]);setNm({label:"",base:"",cat:"dinner",note:""});};
+  const addM=()=>{if(!nm.label.trim()||!nm.base)return;setMenus((ms:any[])=>[...ms,{id:uid(),label:nm.label.trim(),base:parseFloat(nm.base),cat:nm.cat,note:nm.note||null,fixed:nm.fixed,del:true}]);setNm({label:"",base:"",cat:"dinner",note:"",fixed:false});};
   const rstM=(id:string)=>setMenus((ms:any[])=>ms.map((m:any)=>{const d=DMENUS.find((x:any)=>x.id===id);return m.id===id&&d?{...m,base:d.base}:m;}));
 
   const tots=useMemo(()=>{
@@ -209,6 +217,11 @@ export default function App(){
       let svcLines="";
       if(c.frkOnly){
         svcLines=`<tr><td style="padding:4px 8px;color:#555">No chef service fee</td><td></td><td style="padding:4px 8px;text-align:right;color:#7c3aed">Fröken Selfoss only</td></tr>`;
+      } else if(c.isDelivery){
+        svcLines=`<tr><td style="padding:4px 8px;color:#1e40af">No chef service fee</td><td></td><td style="padding:4px 8px;text-align:right;color:#1e40af">Meal Delivery / Catering day</td></tr>`;
+        if(c.deliveryFee>0){
+          svcLines+=`<tr><td style="padding:4px 8px;color:#1e40af">Delivery fee (${c.deliveryKm} km × ${c.deliveryRate} ISK + 24% VAT)</td><td></td><td style="padding:4px 8px;text-align:right;color:#1e40af;font-weight:bold">${ISK(c.deliveryFee)}</td></tr>`;
+        }
       } else {
         const chefLabel=c.frkBf?`Chef fee (breakfast, partial rate${c.h?" ×1.9":""})`:`Chef fee – ${dayType}${c.h?" (×1.9 holiday)":""}`;
         svcLines+=`<tr><td style="padding:4px 8px;color:#555">${chefLabel}</td><td></td><td style="padding:4px 8px;text-align:right">${ISK(c.chef)}</td></tr>`;
@@ -415,7 +428,7 @@ ${[["Estimated Total",tots.grand,true],["30% Retainer (non-refundable, due on bo
               if(day.drkOn)p.push(`Drinks ×${c.drkG}`);
               return <tr key={day.date} style={{cursor:"pointer"}} onClick={()=>{setTab("days");setSel(day.date);}} onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background="#f9fafb"} onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=""}>
                 <td style={tdS(false)}><span style={{fontWeight:600}}>{fd(day.date)}</span>{c.h&&<HolB n={c.h}/>}{extraDates.includes(day.date)&&<span style={{marginLeft:5,fontSize:10,background:"#eff6ff",color:"#1e40af",padding:"1px 5px",borderRadius:3}}>added</span>}</td>
-                <td style={tdS(false)}><span style={{padding:"2px 6px",borderRadius:4,fontSize:11,background:day.type==="full"?"#dbeafe":"#fef3c7",color:day.type==="full"?"#1e40af":"#92400e"}}>{day.type==="full"?"Full":"Partial"}</span>{c.frkOnly&&<div style={{fontSize:10,color:"#7c3aed",marginTop:2}}>No svc fee</div>}</td>
+                <td style={tdS(false)}><span style={{padding:"2px 6px",borderRadius:4,fontSize:11,background:day.type==="full"?"#dbeafe":day.type==="delivery"?"#eff6ff":"#fef3c7",color:day.type==="full"?"#1e40af":day.type==="delivery"?"#1e40af":"#92400e"}}>{day.type==="full"?"Full":day.type==="delivery"?"Del/Cat":"Partial"}</span>{c.frkOnly&&<div style={{fontSize:10,color:"#7c3aed",marginTop:2}}>No svc fee</div>}{c.isDelivery&&<div style={{fontSize:10,color:"#1e40af",marginTop:2}}>No svc fee</div>}</td>
                 <td style={{...tdS(false),fontSize:12,color:"#6b7280"}}>{p.join(" · ")||"—"}</td>
                 <td style={tdS(true)}>{c.svcA>0?ISK(c.svcA):"—"}{c.minApp&&<div style={{fontSize:10,color:"#f59e0b"}}>min. applied</div>}{c.h&&!c.frkOnly&&<div style={{fontSize:10,color:"#d97706"}}>×1.9</div>}</td>
                 <td style={tdS(true)}>{c.foodT>0?ISK(c.foodT):"—"}</td>
@@ -454,11 +467,31 @@ ${[["Estimated Total",tots.grand,true],["30% Retainer (non-refundable, due on bo
               <div style={{padding:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                    <div><LB t="Day Type"/><select value={day.type} onChange={e=>u("type",e.target.value)} style={iS}><option value="full">Full Day (98,000 · min 120,000)</option><option value="partial">Partial – multi-day (58,800 · min 72,000)</option></select></div>
+                    <div><LB t="Day Type"/><select value={day.type} onChange={e=>u("type",e.target.value)} style={iS}>
+                      <option value="full">Full Day (98,000 · min 120,000)</option>
+                      <option value="partial">Partial – multi-day (58,800 · min 72,000)</option>
+                      <option value="delivery">Meal Delivery / Catering – no service fee</option>
+                    </select></div>
                     <GIn label={`Guests (def: ${GG})`} value={day.gO} onChange={v=>u("gO",v)} inh={GG}/>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                    <div><LB t="Extra Staff"/><input type="number" min={0} value={day.eS} onChange={e=>u("eS",parseInt(e.target.value)||0)} style={iS}/><div style={{fontSize:10,color:"#9ca3af",marginTop:2}}>58,800 ISK/person</div></div>
+                  {day.type==="delivery"&&<div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,padding:12}}>
+                    <div style={{fontWeight:600,fontSize:12,marginBottom:8,color:"#1e40af"}}>🚗 Delivery Fee</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      <div>
+                        <LB t="Distance (km)"/>
+                        <input type="number" min={0} value={day.deliveryKm} onChange={e=>u("deliveryKm",e.target.value)} placeholder="e.g. 45" style={iS}/>
+                      </div>
+                      <div>
+                        <LB t="Time of day"/>
+                        <select value={day.deliveryTime} onChange={e=>u("deliveryTime",e.target.value)} style={iS}>
+                          {Object.entries(DELIVERY_RATES).map(([k,v]:any)=><option key={k} value={k}>{v.label} — {v.rate} ISK/km</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    {parseFloat(day.deliveryKm)>0&&<div style={{marginTop:8,fontSize:12,color:"#1e40af"}}>
+                      {day.deliveryKm} km × {DELIVERY_RATES[day.deliveryTime]?.rate} ISK + 24% VAT = <strong>{ISK(Math.round(parseFloat(day.deliveryKm)*DELIVERY_RATES[day.deliveryTime]?.rate*(1+DELIVERY_VAT)))}</strong>
+                    </div>}
+                  </div>}
                     <div><LB t="Overnight"/><label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,marginTop:6}}><input type="checkbox" checked={day.ovn} onChange={e=>u("ovn",e.target.checked)}/><span>Required</span></label>{day.ovn&&<input value={day.ovnN} onChange={e=>u("ovnN",e.target.value)} placeholder="e.g. Guest house" style={{...iS,marginTop:4,fontSize:11}}/>}</div>
                   </div>
                   <div style={{background:"#f9fafb",borderRadius:8,padding:10}}>
@@ -519,6 +552,7 @@ ${[["Estimated Total",tots.grand,true],["30% Retainer (non-refundable, due on bo
                   <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>Day Breakdown</div>
                   <div style={{fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>Service Fee</div>
                   {c.frkOnly?<div style={{fontSize:12,color:"#7c3aed",padding:"3px 0"}}>No service fee (Fröken only)</div>
+                  :c.isDelivery?<div style={{fontSize:12,color:"#1e40af",padding:"3px 0"}}>No service fee (Meal Delivery / Catering)</div>
                     :[{l:c.frkBf?"Chef (breakfast, partial)":"Chef fee",v:c.chef,note:c.h?"×1.9 holiday":null},
                       ...(c.staff>0?[{l:`Extra staff (${day.eS}×) — 58,800 ISK each`,v:c.staff,note:c.h?"×1.9 applied":null}]:[]),
                       ...(c.minApp?[{l:"Min. spend top-up",v:c.ms,note:`below min. ${ISK(c.min)}`,warn:true}]:[]),
@@ -536,6 +570,10 @@ ${[["Estimated Total",tots.grand,true],["30% Retainer (non-refundable, due on bo
                     {c.lSvc>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:11,color:"#6b7280"}}><span>Lunch service fee</span><span>{ISK(c.lSvc)}</span></div>}
                     <div style={{display:"flex",justifyContent:"space-between",padding:"5px 0 0",fontWeight:700,fontSize:12,borderTop:"1px solid #d1d5db",marginTop:3}}><span>Food total (est.)</span><span>{ISK(c.foodT+c.lSvc)}</span></div>
                   </>}
+                  {c.deliveryFee>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"3px 0",borderBottom:"1px solid #e5e7eb",fontSize:12,color:"#1e40af"}}>
+                    <span>Delivery fee ({c.deliveryKm} km × {c.deliveryRate} ISK + 24% VAT)</span>
+                    <span style={{fontWeight:600}}>{ISK(c.deliveryFee)}</span>
+                  </div>}
                   {c.cx>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12,borderTop:"1px solid #e5e7eb",marginTop:3,color:"#d97706"}}><span>Complexity surcharge</span><span>{ISK(c.cx)}</span></div>}
                   <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0 0",fontWeight:800,fontSize:14,borderTop:"2px solid #d1d5db",marginTop:6}}><span>Day Total (est.)</span><span>{ISK(c.sub)}</span></div>
                 </div>
@@ -593,7 +631,7 @@ ${[["Estimated Total",tots.grand,true],["30% Retainer (non-refundable, due on bo
                 <thead><tr>{[["Item",false],["Base/pax",true],["incl. VAT",true],["Final",true],["",false]].map(([h,r])=><th key={h as string} style={thS(r as boolean)}>{h}</th>)}</tr></thead>
                 <tbody>{cm.map((m:any)=>{
                   const def=DMENUS.find((d:any)=>d.id===m.id)?.base,chg=def!==undefined&&m.base!==def;
-                  const isFlat=FLATIDS.includes(m.id);
+                  const isFlat=FLATIDS.includes(m.id)||m.fixed===true;
                   return <tr key={m.id}>
                     <td style={tdS(false)}><div style={{fontWeight:500}}>{m.label}</div>{m.note&&<div style={{fontSize:10,color:"#9ca3af"}}>{m.note}</div>}</td>
                     <td style={{...tdS(true),width:200}}>
@@ -621,11 +659,19 @@ ${[["Estimated Total",tots.grand,true],["30% Retainer (non-refundable, due on bo
           })}
           <div style={{border:"1px dashed #d1d5db",borderRadius:8,padding:12,background:"#fafafa"}}>
             <div style={{fontWeight:700,fontSize:12,marginBottom:8}}>Add Custom Menu Item</div>
-            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 2fr auto",gap:8,alignItems:"flex-end"}}>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr auto",gap:8,alignItems:"flex-end"}}>
               <div><LB t="Name"/><input value={nm.label} onChange={e=>setNm(p=>({...p,label:e.target.value}))} placeholder="e.g. Tasting menu" style={iS}/></div>
               <div><LB t="Category"/><select value={nm.cat} onChange={e=>setNm(p=>({...p,cat:e.target.value}))} style={iS}>{Object.entries(CATS).map(([k,v])=><option key={k} value={k}>{v as string}</option>)}</select></div>
               <div><LB t="Base/pax (ISK)"/><input type="number" min={0} value={nm.base} onChange={e=>setNm(p=>({...p,base:e.target.value}))} placeholder="5000" style={iS}/></div>
               <div><LB t="Note"/><input value={nm.note} onChange={e=>setNm(p=>({...p,note:e.target.value}))} placeholder="optional" style={iS}/></div>
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                <LB t="Fixed price?"/>
+                <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,marginTop:2}}>
+                  <input type="checkbox" checked={nm.fixed} onChange={e=>setNm(p=>({...p,fixed:e.target.checked}))}/>
+                  <span>Flat rate (no VAT/markup added)</span>
+                </label>
+                <div style={{fontSize:10,color:"#9ca3af"}}>e.g. 3,990 ISK → 3,990 ISK final</div>
+              </div>
               <button onClick={addM} disabled={!nm.label.trim()||!nm.base} style={{padding:"6px 14px",background:"#111827",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:600,opacity:(!nm.label.trim()||!nm.base)?0.4:1}}>+ Add</button>
             </div>
           </div>
